@@ -1,745 +1,932 @@
-/*
- * Integrated Bookmarklet V1
- *
- * 1. Forge V6
- *    - 必定橙色
- *    - 已抽中的詞條數值 MAX
- *    - 3 孔
- *    - 排除 artifact
- *
- * 2. 僕從任務 V10
- *    - 打掃清潔：50,000 靈石
- *    - 餵養靈獸：500 獸丹
- *    - 種植靈草：500 靈草
- *    - 整理武學秘典：500 武學積分
- *    - 礦脈採礦：50,000 礦石
- *
- * 3. grantQuestRewards Hook
- *    - 任務真正結算時再次套用獎勵
- *
- * 4. 修煉效率 V3
- *    - 基礎修煉倍率固定 10 倍
- *    - 排除宗門倍率
- *    - 排除狐狸倍率
- *    - 排除龍倍率
- *    - 排除悟道倍率
- */
-
 javascript:(()=>{try{
 
-  const STATE=window.__INTEGRATED_BOOKMARKLET_V1__||{};
+/* ============================================================
+   整合 Bookmarklet V2
+   ============================================================
 
-  const log=(...args)=>{
-    try{
-      console.log("[Integrated Bookmarklet]",...args);
-    }catch(e){}
-  };
+   ① 鍛造 V6
+      - 必定橙色
+      - 已抽中的詞條 MAX
+      - 三孔
+      - artifact 排除
 
+   ② 僕從任務 V10
+      - 打掃：50,000 靈石
+      - 餵養靈獸：500 獸丹
+      - 種植：500 靈草
+      - 整理武學：500 武學積分
+      - 礦脈：50,000 礦石
 
-  /* ============================================================
-     1. 鍛造 V6
-     ============================================================ */
+   ③ grantQuestRewards Hook
+      - 任務實際結算時再次套用獎勵
 
-  if(!STATE.forge){
+   ④ 修煉效率 V4
+      - 基礎修煉倍率固定 10
+      - 移除狐狸倍率
+      - 移除龍倍率
+      - 移除悟道倍率
+      - 支援不同空白 / 換行格式
+*/
 
-    const F=window.forgeEquipment;
 
-    if(typeof F==="function"){
+const STATE=
+window.__INTEGRATED_BOOKMARKLET_V2__||
+{};
 
-      const OLD=F;
-      const OLD_RANDOM=Math.random;
+const log=(...args)=>{
+try{
+console.log(
+"[Integrated Bookmarklet]",
+...args
+);
+}catch(e){}
+};
 
-      const MAX={
 
-        strPct:0.05,
-        conPct:0.05,
-        intPct:0.05,
-        sprPct:0.05,
-        chaPct:0.05,
+/* ============================================================
+   ① 鍛造 V6
+   ============================================================ */
 
-        atkPct:0.04,
-        hpPct:0.05,
+if(!STATE.forge){
 
-        def:3,
-        eva:2,
+const F=window.forgeEquipment;
 
-        ice:5,
-        fire:5,
-        poison:5,
-        metal:5,
-        thunder:5,
+if(typeof F==="function"){
 
-        "fx:法爆":0.05,
-        "fx:手敵":0.05,
-        "fx:回春":0.008,
-        "fx:回靈":0.01,
-        "fx:噬魂":0.02,
-        "fx:聚財":0.06,
-        "fx:悟道":0.03,
-        "fx:積德":0.08,
-        "fx:尋鐵":0.08,
-        "fx:獸魂":0.08
-      };
+const OLD=F;
+const OLD_RANDOM=Math.random;
 
+const MAX={
 
-      window.__FORGE_MAX_V6_OLD__=OLD;
+strPct:0.05,
+conPct:0.05,
+intPct:0.05,
+sprPct:0.05,
+chaPct:0.05,
 
+atkPct:0.04,
+hpPct:0.05,
 
-      window.forgeEquipment=function(qty=1){
+def:3,
+eva:2,
 
-        let first=true;
+ice:5,
+fire:5,
+poison:5,
+metal:5,
+thunder:5,
 
+"fx:法爆":0.05,
+"fx:手敵":0.05,
+"fx:回春":0.008,
+"fx:回靈":0.01,
+"fx:噬魂":0.02,
+"fx:聚財":0.06,
+"fx:悟道":0.03,
+"fx:積德":0.08,
+"fx:尋鐵":0.08,
+"fx:獸魂":0.08
 
-        Math.random=function(){
+};
 
-          /*
-           * 第一次 RNG：
-           * 品質判定固定回傳 0.01
-           */
-          if(first){
+window.__FORGE_MAX_V6_OLD__=OLD;
 
-            first=false;
+window.forgeEquipment=function(qty=1){
 
-            return 0.01;
-          }
+let first=true;
 
+Math.random=function(){
 
-          return OLD_RANDOM.apply(this,arguments);
-        };
+if(first){
 
+first=false;
 
-        const before=
-          window.player &&
-          player.equipInventory
-            ? player.equipInventory.length
-            : 0;
+return 0.01;
 
+}
 
-        let result;
+return OLD_RANDOM.apply(
+this,
+arguments
+);
 
+};
 
-        try{
+let before=0;
 
-          result=OLD.call(this,qty);
+try{
 
-        }finally{
+if(
+window.player&&
+Array.isArray(player.equipInventory)
+){
 
-          Math.random=OLD_RANDOM;
-        }
+before=
+player.equipInventory.length;
 
+}
 
-        try{
+}catch(e){}
 
-          const made=player.equipInventory.slice(before);
+let result;
 
+try{
 
-          made.forEach(eq=>{
+result=
+OLD.call(
+this,
+qty
+);
 
-            if(!eq){
-              return;
-            }
+}finally{
 
+Math.random=
+OLD_RANDOM;
 
-            /*
-             * Artifact 不修改
-             */
-            if(eq.category==="artifact"){
-              return;
-            }
+}
 
+try{
 
-            /*
-             * 固定橙色
-             */
-            eq.quality="橙色";
+if(
+!window.player||
+!Array.isArray(player.equipInventory)
+){
 
+return result;
 
-            /*
-             * 已經抽到的詞條 → MAX
-             */
-            if(Array.isArray(eq.subs)){
+}
 
-              eq.subs.forEach(sub=>{
+const made=
+player.equipInventory.slice(
+before
+);
 
-                if(!Array.isArray(sub)){
-                  return;
-                }
+made.forEach(eq=>{
 
+if(!eq){
+return;
+}
 
-                const key=sub[0];
+if(eq.category==="artifact"){
+return;
+}
 
 
-                if(
-                  Object.prototype.hasOwnProperty.call(
-                    MAX,
-                    key
-                  )
-                ){
+/* 橙色 */
+eq.quality="橙色";
 
-                  sub[1]=MAX[key];
-                }
 
-              });
-            }
+/* 已抽中的詞條 MAX */
 
+if(Array.isArray(eq.subs)){
 
-            /*
-             * 三孔
-             */
-            eq.sockets=[
-              null,
-              null,
-              null
-            ];
+eq.subs.forEach(sub=>{
 
-          });
+if(!Array.isArray(sub)){
+return;
+}
 
+const key=sub[0];
 
-          /*
-           * 更新畫面
-           */
-          try{
+if(
+Object.prototype.hasOwnProperty.call(
+MAX,
+key
+)
+){
 
-            if(typeof updateUI==="function"){
-              updateUI();
-            }
+sub[1]=MAX[key];
 
-          }catch(e){}
+}
 
-        }catch(e){
+});
 
-          log(
-            "Forge post-process error:",
-            e
-          );
-        }
+}
 
 
-        return result;
-      };
+/* 三孔 */
 
+eq.sockets=[
+null,
+null,
+null
+];
 
-      STATE.forge=true;
+});
 
-      log(
-        "Forge V6 installed"
-      );
 
-    }else{
+try{
 
-      log(
-        "forgeEquipment not found"
-      );
-    }
-  }
+if(
+typeof updateUI==="function"
+){
 
+updateUI();
 
+}
 
-  /* ============================================================
-     2. 僕從任務獎勵規則
-     ============================================================ */
+}catch(e){}
 
-  const applyQuestRewardRules=function(def){
+}catch(e){
 
-    try{
+log(
+"Forge error:",
+e
+);
 
-      if(
-        !def ||
-        !def.rewards
-      ){
-        return;
-      }
+}
 
+return result;
 
-      const name=def.name;
+};
 
+STATE.forge=true;
 
-      /*
-       * 打掃清潔
-       */
-      if(name==="打掃清潔"){
+log(
+"Forge V6 installed"
+);
 
-        def.rewards.coins=50000;
-      }
+}else{
 
+log(
+"forgeEquipment not found"
+);
 
-      /*
-       * 餵養靈獸
-       */
-      if(name==="餵養靈獸"){
+}
 
-        def.rewards.beastCore=500;
-      }
+}
 
 
-      /*
-       * 種植靈草
-       */
-      if(name==="種植靈草"){
+/* ============================================================
+   ② 僕從任務 V10
+   ============================================================ */
 
-        def.rewards.spiritGrass=500;
-      }
+const applyQuestRewardRules=
+function(def){
 
+try{
 
-      /*
-       * 整理武學秘典
-       */
-      if(name==="整理武學秘典"){
+if(
+!def||
+!def.rewards
+){
 
-        def.rewards.martialPoints=500;
-      }
+return;
 
+}
 
-      /*
-       * 礦脈採礦
-       */
-      if(name==="礦脈採礦"){
+const name=
+String(def.name||"");
 
-        def.rewards.ore=50000;
-      }
 
-    }catch(e){
+if(name==="打掃清潔"){
 
-      log(
-        "Quest reward rule error:",
-        e
-      );
-    }
-  };
+def.rewards.coins=
+50000;
 
+}
 
 
-  /* ============================================================
-     3. 直接修改 questData
-     ============================================================ */
+if(name==="餵養靈獸"){
 
-  if(typeof questData!=="undefined"){
+def.rewards.beastCore=
+500;
 
-    try{
+}
 
-      /*
-       * 打掃清潔
-       */
-      if(
-        questData.clean &&
-        questData.clean[1]
-      ){
 
-        questData.clean[1].rewards={
-          coins:50000
-        };
-      }
+if(name==="種植靈草"){
 
+def.rewards.spiritGrass=
+500;
 
-      /*
-       * 餵養靈獸
-       */
-      if(
-        questData.clean &&
-        questData.clean[2]
-      ){
+}
 
-        questData.clean[2].rewards={
-          beastCore:500
-        };
-      }
 
+if(name==="整理武學秘典"){
 
-      /*
-       * 種植靈草
-       */
-      if(questData.plant){
+def.rewards.martialPoints=
+500;
 
-        [1,2,3].forEach(
-          tier=>{
+}
 
-            if(questData.plant[tier]){
 
-              questData.plant[tier].rewards={
-                spiritGrass:500
-              };
+if(name==="礦脈採礦"){
 
-            }
+def.rewards.ore=
+50000;
 
-          }
-        );
-      }
+}
 
+}catch(e){
 
-      /*
-       * 整理武學秘典
-       */
-      if(questData.book){
+log(
+"Quest reward error:",
+e
+);
 
-        [1,2,3].forEach(
-          tier=>{
+}
 
-            if(questData.book[tier]){
+};
 
-              questData.book[tier].rewards={
-                martialPoints:500
-              };
 
-            }
+/* ============================================================
+   ③ 修改 questData
+   ============================================================ */
 
-          }
-        );
-      }
+try{
 
+if(
+typeof questData!=="undefined"
+){
 
-      /*
-       * 礦脈採礦
-       */
-      if(questData.mine){
+/* 打掃 */
+if(
+questData.clean&&
+questData.clean[1]
+){
 
-        [2,3].forEach(
-          tier=>{
+questData.clean[1].rewards={
+coins:50000
+};
 
-            if(questData.mine[tier]){
+}
 
-              questData.mine[tier].rewards={
-                ore:50000
-              };
 
-            }
+/* 餵養 */
+if(
+questData.clean&&
+questData.clean[2]
+){
 
-          }
-        );
-      }
+questData.clean[2].rewards={
+beastCore:500
+};
 
+}
 
-      log(
-        "QuestData V10 applied"
-      );
 
-    }catch(e){
+/* 種植 */
 
-      log(
-        "QuestData V10 error:",
-        e
-      );
-    }
-  }
+if(questData.plant){
 
+[1,2,3].forEach(
+tier=>{
 
+if(
+questData.plant[tier]
+){
 
-  /* ============================================================
-     4. grantQuestRewards Hook
-     ============================================================ */
+questData.plant[tier].rewards={
+spiritGrass:500
+};
 
-  if(
-    !STATE.questHook &&
-    typeof grantQuestRewards==="function"
-  ){
+}
 
-    const originalGrant=
-      grantQuestRewards;
+}
+);
 
+}
 
-    const hookedGrant=
-      function(def,servant){
 
-        try{
+/* 武學 */
 
-          /*
-           * 真正發放獎勵之前修改
-           */
-          applyQuestRewardRules(def);
+if(questData.book){
 
-        }catch(e){
+[1,2,3].forEach(
+tier=>{
 
-          log(
-            "grantQuestRewards pre-hook error:",
-            e
-          );
-        }
+if(
+questData.book[tier]
+){
 
+questData.book[tier].rewards={
+martialPoints:500
+};
 
-        /*
-         * 執行原本遊戲函式
-         */
-        return originalGrant.call(
-          this,
-          def,
-          servant
-        );
-      };
+}
 
+}
+);
 
-    window.__integrated_original_grantQuestRewards__=
-      originalGrant;
+}
 
 
-    window.grantQuestRewards=
-      hookedGrant;
+/* 礦脈 */
 
+if(questData.mine){
 
-    STATE.questHook=true;
+[2,3].forEach(
+tier=>{
 
+if(
+questData.mine[tier]
+){
 
-    log(
-      "grantQuestRewards hook installed"
-    );
-  }
+questData.mine[tier].rewards={
+ore:50000
+};
 
+}
 
+}
+);
 
-  /* ============================================================
-     5. 更新任務 UI
-     ============================================================ */
+}
 
-  try{
+}
 
-    if(
-      typeof renderQuestButtons==="function"
-    ){
+}catch(e){
 
-      renderQuestButtons();
-    }
+log(
+"questData error:",
+e
+);
 
-  }catch(e){}
 
+/* ============================================================
+   ④ grantQuestRewards Hook
+   ============================================================ */
 
-  try{
+try{
 
-    if(
-      typeof updateQuestUI==="function"
-    ){
+if(
+!STATE.questHook&&
+typeof grantQuestRewards==="function"
+){
 
-      updateQuestUI();
-    }
+const originalGrant=
+grantQuestRewards;
 
-  }catch(e){}
+window.__integrated_original_grantQuestRewards__=
+originalGrant;
 
+window.grantQuestRewards=
+function(def,servant){
 
+try{
 
-  /* ============================================================
-     6. 修煉效率 ×10 V3
-     ============================================================ */
+applyQuestRewardRules(def);
 
-  if(
-    !STATE.cultivation &&
-    typeof window.gainExp==="function"
-  ){
+}catch(e){}
 
-    try{
+return originalGrant.call(
+this,
+def,
+servant
+);
 
-      const original=
-        window.gainExp;
+};
 
+STATE.questHook=true;
 
-      let src=
-        Function.prototype.toString.call(
-          original
-        );
+}
 
+}catch(e){
 
-      /*
-       * 嘗試解碼 URL encoded source
-       */
-      try{
+log(
+"Quest hook error:",
+e
+);
 
-        const decoded=
-          decodeURIComponent(src);
 
+/* UI */
 
-        if(
-          decoded.length>src.length ||
-          decoded.includes(
-            "player.sect.expMult"
-          )
-        ){
+try{
 
-          src=decoded;
-        }
+if(
+typeof renderQuestButtons==="function"
+){
 
-      }catch(e){}
+renderQuestButtons();
 
+}
 
+}catch(e){}
 
-      /*
-       * 原本：
-       *
-       * let finalAmount =
-       * amount *
-       * (player.sect
-       * ? player.sect.expMult
-       * : 1.0);
-       */
-      const oldLine=
-        "let finalAmount = amount * (player.sect ? player.sect.expMult : 1.0);";
+try{
 
+if(
+typeof updateQuestUI==="function"
+){
 
-      /*
-       * 修改：
-       *
-       * amount × 10
-       */
-      const newLine=
-        "let finalAmount = amount * 10;";
+updateQuestUI();
 
+}
 
-      if(src.includes(oldLine)){
+}catch(e){}
 
-        src=
-          src.replace(
-            oldLine,
-            newLine
-          );
 
+/* ============================================================
+   ⑤ 修煉效率 V4
+   ============================================================ */
 
-        /*
-         * 移除狐狸倍率
-         */
-        src=
-          src.replace(
-            /\s*if\s*\(hasLiveBeast\(['"]fox['"]\)\)\s*finalAmount\s*\*=\s*1\.1;?/g,
-            ""
-          );
+if(
+!STATE.cultivation
+){
 
+try{
 
-        /*
-         * 移除龍倍率
-         */
-        src=
-          src.replace(
-            /\s*if\s*\(hasLiveBeast\(['"]dragon['"]\)\)\s*finalAmount\s*\*=\s*1\.2;?/g,
-            ""
-          );
+if(
+typeof window.gainExp!=="function"
+){
 
+log(
+"gainExp not found"
+);
 
-        /*
-         * 移除悟道倍率
-         */
-        src=
-          src.replace(
-            /\s*finalAmount\s*\*=\s*1\s*\+\s*gearFx\(["']悟道["']\);?/g,
-            ""
-          );
+}else{
 
+const original=
+window.gainExp;
 
-        /*
-         * 重建 gainExp
-         */
-        const fn=
-          Function(
-            "return ("+
-            src+
-            ")"
-          )();
+let src=
+Function.prototype.toString.call(
+original
+);
 
 
-        if(typeof fn==="function"){
+/* ------------------------------------------------------------
+   先處理可能存在的 URL encoding
+   ------------------------------------------------------------ */
 
-          window.__cult10_original=
-            original;
+try{
 
+const decoded=
+decodeURIComponent(src);
 
-          window.gainExp=
-            fn;
+if(
+decoded!==src&&
+(
+decoded.includes("finalAmount")||
+decoded.includes("expMult")
+)
+){
 
+src=decoded;
 
-          STATE.cultivation=
-            true;
+}
 
+}catch(e){}
 
-          log(
-            "Cultivation x10 installed"
-          );
 
-        }else{
+/* ------------------------------------------------------------
+   移除狐狸倍率
+   支援：
+   if(hasLiveBeast('fox')) finalAmount *= 1.1;
+   if (hasLiveBeast("fox")) finalAmount *= 1.1;
+   ------------------------------------------------------------ */
 
-          log(
-            "Cultivation replacement failed"
-          );
-        }
+src=
+src.replace(
+/if\s*\(\s*hasLiveBeast\s*\(\s*['"]fox['"]\s*\)\s*\)\s*finalAmount\s*\*=\s*1\.1\s*;?/g,
+""
+);
 
-      }else{
 
-        log(
-          "Original cultivation multiplier line not found"
-        );
-      }
+/* ------------------------------------------------------------
+   移除龍倍率
+   ------------------------------------------------------------ */
 
-    }catch(e){
+src=
+src.replace(
+/if\s*\(\s*hasLiveBeast\s*\(\s*['"]dragon['"]\s*\)\s*\)\s*finalAmount\s*\*=\s*1\.2\s*;?/g,
+""
+);
 
-      log(
-        "Cultivation install error:",
-        e
-      );
-    }
-  }
 
+/* ------------------------------------------------------------
+   移除悟道倍率
 
+   支援：
+   finalAmount *= 1 + gearFx("悟道");
+   finalAmount*=1+gearFx('悟道');
+   ------------------------------------------------------------ */
 
-  /* ============================================================
-     7. 保存整合狀態
-     ============================================================ */
+src=
+src.replace(
+/finalAmount\s*\*=\s*1\s*\+\s*gearFx\s*\(\s*['"]悟道['"]\s*\)\s*;?/g,
+""
+);
 
-  window.__INTEGRATED_BOOKMARKLET_V1__=
-    STATE;
 
+/* ------------------------------------------------------------
+   修煉倍率核心修正
 
+   原本可能是：
 
-  /* ============================================================
-     8. 顯示結果
-     ============================================================ */
+   let finalAmount =
+   amount *
+   (player.sect ? player.sect.expMult : 1.0);
 
-  const status=[
+   或：
 
-    "鍛造 V6："+(
-      STATE.forge
-        ?"✓ 已啟用"
-        :"✗ 未找到"
-    ),
+   let finalAmount = amount * (
+       player.sect
+       ? player.sect.expMult
+       : 1.0
+   );
 
-    "僕從任務 V10："+(
-      typeof questData!=="undefined"
-        ?"✓ 已套用"
-        :"✗ 未找到 questData"
-    ),
+   或單行格式。
+   ------------------------------------------------------------ */
 
-    "任務發放 Hook："+(
-      STATE.questHook
-        ?"✓ 已啟用"
-        :"✗ 未找到 grantQuestRewards"
-    ),
 
-    "修煉 10 倍："+(
-      STATE.cultivation
-        ?"✓ 已啟用"
-        :"✗ 未安裝"
-    )
+/* 格式 A */
 
-  ].join("\n");
+let changed=false;
 
+let reA=
+/(let\s+finalAmount\s*=\s*amount\s*\*\s*)\(\s*player\.sect\s*\?\s*player\.sect\.expMult\s*:\s*1\.0\s*\)/;
 
-  alert(
+if(
+reA.test(src)
+){
 
-    "✅ 整合 Bookmarklet V1 已執行\n\n"+
+src=
+src.replace(
+reA,
+"$1 10"
+);
 
-    status+
+changed=true;
 
-    "\n\n"+
+}
 
-    "鍛造：橙色／已抽詞條 MAX／3孔\n"+
 
-    "任務：固定獎勵\n"+
+/* 格式 B */
 
-    "修煉：基礎 10 倍"
+if(!changed){
 
-  );
+let reB=
+/(let\s+finalAmount\s*=\s*amount\s*\*\s*)player\.sect\s*\?\s*player\.sect\.expMult\s*:\s*1\.0/;
+
+if(
+reB.test(src)
+){
+
+src=
+src.replace(
+reB,
+"$1 10"
+);
+
+changed=true;
+
+}
+
+}
+
+
+/* 格式 C：可能有 const */
+
+if(!changed){
+
+let reC=
+/((?:let|const|var)\s+finalAmount\s*=\s*amount\s*\*\s*)\(\s*player\.sect\s*\?\s*player\.sect\.expMult\s*:\s*1(?:\.0)?\s*\)/;
+
+if(
+reC.test(src)
+){
+
+src=
+src.replace(
+reC,
+"$1 10"
+);
+
+changed=true;
+
+}
+
+}
+
+
+/* 格式 D：直接搜尋 finalAmount 起始倍率 */
+
+if(!changed){
+
+let reD=
+/((?:let|const|var)\s+finalAmount\s*=\s*amount\s*\*\s*)\(\s*player\.sect\s*\?\s*player\.sect\.expMult\s*:\s*1(?:\.0)?\s*\)/;
+
+if(
+reD.test(src)
+){
+
+src=
+src.replace(
+reD,
+"$1 10"
+);
+
+changed=true;
+
+}
+
+}
+
+
+/* ------------------------------------------------------------
+   如果找到 finalAmount，但原本倍率格式不同，
+   嘗試把 player.sect.expMult 改成固定 10
+   ------------------------------------------------------------ */
+
+if(!changed){
+
+let reE=
+/player\.sect\.expMult/g;
+
+if(
+reE.test(src)&&
+src.includes("finalAmount")
+){
+
+src=
+src.replace(
+reE,
+"10"
+);
+
+changed=true;
+
+}
+
+}
+
+
+/* ------------------------------------------------------------
+   建立新的 gainExp
+   ------------------------------------------------------------ */
+
+if(changed){
+
+try{
+
+const fn=
+Function(
+"return ("+
+src+
+")"
+)();
+
+
+if(
+typeof fn==="function"
+){
+
+window.__cult10_original=
+original;
+
+window.gainExp=
+fn;
+
+STATE.cultivation=true;
+
+STATE.cultivationMethod=
+"source-rewrite";
+
+log(
+"修煉效率 ×10 已安裝"
+);
+
+}else{
+
+log(
+"gainExp 重建失敗"
+);
+
+}
+
+}catch(e){
+
+log(
+"gainExp rebuild error:",
+e
+);
+
+}
+
+}else{
+
+/*
+ * 沒有找到時不假裝成功
+ */
+STATE.cultivation=false;
+
+STATE.cultivationFailed=true;
+
+log(
+"找不到 gainExp 修煉倍率"
+);
+
+}
+
+}
+
+}catch(e){
+
+log(
+"Cultivation error:",
+e
+);
+
+}
+
+}
+
+
+/* ============================================================
+   ⑥ 儲存狀態
+   ============================================================ */
+
+window.__INTEGRATED_BOOKMARKLET_V2__=
+STATE;
+
+
+/* ============================================================
+   ⑦ 顯示結果
+   ============================================================ */
+
+const status=[
+
+"鍛造 V6："+
+(
+STATE.forge
+?"✓"
+:"✗"
+),
+
+"僕從任務 V10："+
+(
+typeof questData!=="undefined"
+?"✓"
+:"✗"
+),
+
+"任務發放 Hook："+
+(
+STATE.questHook
+?"✓"
+:"✗"
+),
+
+"修煉效率 ×10："+
+(
+STATE.cultivation
+?"✓"
+:"✗"
+)
+
+].join("\n");
+
+
+if(
+STATE.cultivation
+){
+
+alert(
+
+"✅ 整合 Bookmarklet V2\n\n"+
+
+status+
+
+"\n\n"+
+
+"修煉效率：10 倍\n"+
+"宗門倍率：已排除\n"+
+"狐狸倍率：已排除\n"+
+"龍倍率：已排除\n"+
+"悟道倍率：已排除"
+
+);
+
+}else{
+
+alert(
+
+"⚠️ 整合 Bookmarklet V2 已執行\n\n"+
+
+status+
+
+"\n\n"+
+
+"⚠️ 修煉效率沒有找到可修改的 gainExp 格式。\n\n"+
+
+"其他功能仍會照常執行。"
+
+);
+
+}
 
 
 }catch(e){
 
-  alert(
+alert(
 
-    "❌ 整合 Bookmarklet 執行失敗\n\n"+
-    e.name+
-    "\n"+
-    e.message
+"❌ 整合 Bookmarklet V2 執行失敗\n\n"+
+e.name+
+"\n"+
+e.message
 
-  );
+);
 
 }})();
